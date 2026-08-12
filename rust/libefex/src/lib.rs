@@ -186,6 +186,12 @@ pub struct Context {
     initialized: bool,
 }
 
+impl Default for Context {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Context {
     /// Create a new context
     pub fn new() -> Self {
@@ -733,8 +739,7 @@ impl Context {
         len: usize,
         addr: u32,
         data_type: FesDataType,
-        cmd: sunxi_efex_cmd_t,
-        byte_addressed: bool,
+        options: FesTransferOptions,
         mut progress_callback: F,
     ) -> Result<u64, EfexError>
     where
@@ -749,7 +754,7 @@ impl Context {
         let base_type = rust_fes_data_type_to_c(data_type) as u32;
         let mut current_type = base_type;
 
-        let xfer_type = if cmd == sunxi_efex_cmd_t::EFEX_CMD_FES_DOWN {
+        let xfer_type = if options.command == sunxi_efex_cmd_t::EFEX_CMD_FES_DOWN {
             sunxi_usb_fes_xfer_type_t::FES_XFER_SEND
         } else {
             sunxi_usb_fes_xfer_type_t::FES_XFER_RECV
@@ -777,7 +782,7 @@ impl Context {
                 sunxi_usb_fes_xfer(
                     self.as_ptr(),
                     xfer_type,
-                    cmd as u32,
+                    options.command as u32,
                     &trans as *const _ as *const c_char,
                     std::mem::size_of::<sunxi_fes_trans_t>() as isize,
                     buff_ptr as *const c_char,
@@ -789,7 +794,7 @@ impl Context {
                 return Err(c_error_to_rust(result));
             }
 
-            addr_cur = addr_cur.wrapping_add(if byte_addressed {
+            addr_cur = addr_cur.wrapping_add(if options.byte_addressed {
                 length
             } else {
                 length / 512
@@ -820,8 +825,10 @@ impl Context {
             buf.len(),
             addr,
             data_type,
-            sunxi_efex_cmd_t::EFEX_CMD_FES_DOWN,
-            data_type_is_byte_addressed(data_type),
+            FesTransferOptions {
+                command: sunxi_efex_cmd_t::EFEX_CMD_FES_DOWN,
+                byte_addressed: data_type_is_byte_addressed(data_type),
+            },
             progress_callback,
         )
     }
@@ -843,8 +850,10 @@ impl Context {
             buf.len(),
             addr,
             data_type,
-            sunxi_efex_cmd_t::EFEX_CMD_FES_UP,
-            data_type_is_byte_addressed(data_type),
+            FesTransferOptions {
+                command: sunxi_efex_cmd_t::EFEX_CMD_FES_UP,
+                byte_addressed: data_type_is_byte_addressed(data_type),
+            },
             progress_callback,
         )
     }
@@ -871,8 +880,10 @@ impl Context {
             buf.len(),
             addr,
             data_type,
-            sunxi_efex_cmd_t::EFEX_CMD_FES_UP,
-            byte_addressed,
+            FesTransferOptions {
+                command: sunxi_efex_cmd_t::EFEX_CMD_FES_UP,
+                byte_addressed,
+            },
             progress_callback,
         )
     }
@@ -898,8 +909,10 @@ impl Context {
             buf.len(),
             addr,
             data_type,
-            cmd,
-            true,
+            FesTransferOptions {
+                command: cmd,
+                byte_addressed: true,
+            },
             progress_callback,
         )
     }
@@ -928,6 +941,11 @@ impl Context {
         };
         self.fes_storage_up_with_progress(buf, addr, data_type, cmd, progress_callback)
     }
+}
+
+struct FesTransferOptions {
+    command: sunxi_efex_cmd_t,
+    byte_addressed: bool,
 }
 
 /// Derive whether a data-type tag uses byte addressing (true) or sector

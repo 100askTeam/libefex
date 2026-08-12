@@ -205,7 +205,7 @@ fn hex_dump(base: u32, buf: &[u8]) {
         print!("{:08x}: ", addr);
 
         // Print hexadecimal
-        for (_j, byte) in chunk.iter().enumerate() {
+        for byte in chunk {
             print!("{:02x} ", byte);
         }
 
