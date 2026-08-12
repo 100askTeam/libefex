@@ -1,6 +1,6 @@
 use std::env;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub fn link_framework(name: &str) {
     println!("cargo:rustc-link-lib=framework={}", name);
@@ -26,14 +26,11 @@ fn find_system_libusb() -> Option<Vec<PathBuf>> {
             println!("cargo:version_number={}", lib.version);
             Some(lib.include_paths)
         }
-        Err(e) => {
-            println!("cargo:warning=Could not find system libusb: {:?}", e);
-            None
-        }
+        Err(_) => None,
     }
 }
 
-fn build_libusb_static(libusb_cmake_dir: &PathBuf) {
+fn build_libusb_static(libusb_cmake_dir: &Path) {
     let libusb_source = libusb_cmake_dir.join("libusb").join("libusb");
 
     println!("cargo:rerun-if-env-changed=LIBUSB_STATIC");
@@ -50,7 +47,7 @@ fn build_libusb_static(libusb_cmake_dir: &PathBuf) {
     let mut base_config = cc::Build::new();
     base_config.include(&out_include);
     base_config.include(&libusb_source);
-    base_config.include(&libusb_source.join("os"));
+    base_config.include(libusb_source.join("os"));
 
     base_config.define("PRINTF_FORMAT(a, b)", Some(""));
     base_config.define("ENABLE_LOGGING", Some("1"));
@@ -168,7 +165,7 @@ fn build_libusb_cmake(libusb_cmake_dir: &PathBuf) -> PathBuf {
     dst
 }
 
-fn copy_dll_to_output(dll_path: &PathBuf) {
+fn copy_dll_to_output(dll_path: &Path) {
     let out_dir = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR not set"));
     let target_dir = out_dir
         .ancestors()
@@ -183,7 +180,7 @@ fn copy_dll_to_output(dll_path: &PathBuf) {
     }
 }
 
-fn find_built_dll(build_dir: &PathBuf) -> Option<PathBuf> {
+fn find_built_dll(build_dir: &Path) -> Option<PathBuf> {
     let search_paths = vec![
         build_dir.join("lib").join("libusb-1.0.dll"),
         build_dir.join("lib").join("Release").join("libusb-1.0.dll"),
@@ -193,15 +190,10 @@ fn find_built_dll(build_dir: &PathBuf) -> Option<PathBuf> {
         build_dir.join("bin").join("Debug").join("libusb-1.0.dll"),
     ];
 
-    for path in search_paths {
-        if path.exists() {
-            return Some(path);
-        }
-    }
-    None
+    search_paths.into_iter().find(|path| path.exists())
 }
 
-fn find_built_dylib(build_dir: &PathBuf) -> Option<PathBuf> {
+fn find_built_dylib(build_dir: &Path) -> Option<PathBuf> {
     let search_paths = vec![
         build_dir.join("lib").join("libusb-1.0.dylib"),
         build_dir
@@ -211,34 +203,24 @@ fn find_built_dylib(build_dir: &PathBuf) -> Option<PathBuf> {
         build_dir.join("lib").join("Debug").join("libusb-1.0.dylib"),
     ];
 
-    for path in search_paths {
-        if path.exists() {
-            return Some(path);
-        }
-    }
-    None
+    search_paths.into_iter().find(|path| path.exists())
 }
 
-fn find_built_so(build_dir: &PathBuf) -> Option<PathBuf> {
+fn find_built_so(build_dir: &Path) -> Option<PathBuf> {
     let search_paths = vec![
         build_dir.join("lib").join("libusb-1.0.so"),
         build_dir.join("lib").join("Release").join("libusb-1.0.so"),
         build_dir.join("lib").join("Debug").join("libusb-1.0.so"),
     ];
 
-    for path in search_paths {
-        if path.exists() {
-            return Some(path);
-        }
-    }
-    None
+    search_paths.into_iter().find(|path| path.exists())
 }
 
 fn build_libefex(
-    include_dir: &PathBuf,
-    src_dir: &PathBuf,
-    libusb_include: &PathBuf,
-    system_libusb_include: Option<&Vec<PathBuf>>,
+    include_dir: &Path,
+    src_dir: &Path,
+    libusb_include: &Path,
+    system_libusb_include: Option<&[PathBuf]>,
 ) {
     let mut c_files = vec![
         src_dir.join("efex-common.c"),
@@ -312,7 +294,6 @@ fn main() {
     let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
 
     let system_libusb_include = if let Some(includes) = find_system_libusb() {
-        println!("cargo:warning=Using system libusb-1.0");
         Some(includes)
     } else if cross_compiling && target_os != "windows" {
         build_libusb_static(&libusb_cmake_dir);
@@ -340,6 +321,6 @@ fn main() {
         &include_dir,
         &src_dir,
         &libusb_include,
-        system_libusb_include.as_ref(),
+        system_libusb_include.as_deref(),
     );
 }
