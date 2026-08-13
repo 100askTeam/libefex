@@ -23,6 +23,7 @@ enum sunxi_fes_data_type_t {
 	SUNXI_EFEX_BOOT1_TAG = 0x7f02,        /**< BOOT1 tag */
 	SUNXI_EFEX_BOOT0_TAG = 0x7f03,        /**< BOOT0 tag */
 	SUNXI_EFEX_ERASE_TAG = 0x7f04,        /**< Erase command tag */
+	SUNXI_EFEX_PREBOOT_TAG = 0x7f08,      /**< PREBOOT tag */
 	SUNXI_EFEX_FULLIMG_SIZE_TAG = 0x7f10, /**< Full image size tag */
 	SUNXI_EFEX_EXT4_UBIFS_TAG = 0x7ff0,   /**< EXT4/UBIFS file system tag */
 	SUNXI_EFEX_FLASH_TAG = 0x8000,        /**< FLASH operation tag */

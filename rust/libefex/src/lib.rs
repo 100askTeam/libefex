@@ -1022,6 +1022,8 @@ pub enum FesDataType {
     Boot0,
     /// Erase command tag
     Erase,
+    /// PREBOOT tag
+    Preboot,
     /// Full image size tag
     FullImgSize,
     /// EXT4/UBIFS file system tag
@@ -1059,6 +1061,7 @@ fn rust_fes_data_type_to_c(data_type: FesDataType) -> sunxi_fes_data_type_t {
         FesDataType::Boot1 => sunxi_fes_data_type_t::SUNXI_EFEX_BOOT1_TAG,
         FesDataType::Boot0 => sunxi_fes_data_type_t::SUNXI_EFEX_BOOT0_TAG,
         FesDataType::Erase => sunxi_fes_data_type_t::SUNXI_EFEX_ERASE_TAG,
+        FesDataType::Preboot => sunxi_fes_data_type_t::SUNXI_EFEX_PREBOOT_TAG,
         FesDataType::FullImgSize => sunxi_fes_data_type_t::SUNXI_EFEX_FULLIMG_SIZE_TAG,
         FesDataType::Ext4Ubifs => sunxi_fes_data_type_t::SUNXI_EFEX_EXT4_UBIFS_TAG,
         FesDataType::Flash => sunxi_fes_data_type_t::SUNXI_EFEX_FLASH_TAG,
@@ -1206,5 +1209,10 @@ mod tests {
             rust_arch_to_c(PayloadArch::Riscv),
             sunxi_efex_fel_payloads_arch::ARCH_RISCV
         );
+    }
+
+    #[test]
+    fn preboot_data_type_uses_the_7f08_wire_tag() {
+        assert_eq!(rust_fes_data_type_to_c(FesDataType::Preboot) as u32, 0x7f08);
     }
 }
