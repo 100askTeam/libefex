@@ -71,7 +71,6 @@ static int sunxi_efex_fes_up_down(const struct sunxi_efex_ctx_t *ctx, const char
 	uint32_t remain_data = (uint32_t) len;
 	const char *buff_ptr = (char *) buf;
 	uint32_t addr_cur = addr;
-	enum sunxi_fes_data_type_t current_type = type;
 	// Addressing mode: data-type tags (0x7xxx) are byte-addressed, while the
 	// FLASH tag (0x8000) is sector-addressed. The storage-specific commands
 	// (raw NAND / SPI NAND / SPI NOR) are always byte-addressed regardless of
@@ -80,6 +79,7 @@ static int sunxi_efex_fes_up_down(const struct sunxi_efex_ctx_t *ctx, const char
 	const bool byte_addressed = is_data_type || cmd == EFEX_CMD_FES_NAND || cmd == EFEX_CMD_FES_SPINAND ||
 	                            cmd == EFEX_CMD_FES_NOR;
 
+	enum sunxi_fes_data_type_t current_type = type;
 	while (remain_data > 0) {
 		// Calculate current transfer length
 		const uint32_t length = (remain_data > EFEX_CODE_MAX_SIZE) ? EFEX_CODE_MAX_SIZE : remain_data;

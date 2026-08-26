@@ -14,6 +14,10 @@ pub struct ScannedDevice {
     pub port: u8,
     pub vid: u16,
     pub pid: u16,
+    /// Stable physical USB topology selector (for example `libusb:3:2`).
+    pub location_path: Option<String>,
+    /// Backend-native device path, when the backend exposes one.
+    pub device_path: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -67,6 +71,9 @@ pub enum EfexError {
     /// Unexpected status code
     #[error("Unexpected status code")]
     UnexpectedStatus,
+    /// Status byte returned by FES for a rejected command.
+    #[error("FES status 0x{0:02x}")]
+    FesStatus(u8),
     /// Invalid device state
     #[error("Invalid device state")]
     InvalidState,
@@ -118,6 +125,10 @@ pub enum EfexError {
 fn c_error_to_rust(error_code: i32) -> EfexError {
     if error_code == EFEX_ERR_SUCCESS {
         unreachable!("Success code should not be converted to error");
+    }
+
+    if (1..=u8::MAX as i32).contains(&error_code) {
+        return EfexError::FesStatus(error_code as u8);
     }
 
     match error_code {
@@ -235,6 +246,24 @@ impl Context {
         Ok(())
     }
 
+    /// Open a device selected by a stable location or backend path.
+    pub fn scan_usb_device_by_location(&mut self, location: &str) -> Result<(), EfexError> {
+        if let Some(rest) = location.strip_prefix("libusb:") {
+            let (bus, port) = rest.split_once(':').ok_or(EfexError::InvalidParam)?;
+            let bus = bus.parse::<u8>().map_err(|_| EfexError::InvalidParam)?;
+            let port = port.parse::<u8>().map_err(|_| EfexError::InvalidParam)?;
+            return self.scan_usb_device_at(bus, port);
+        }
+
+        self.set_device_path(location)?;
+        self.scan_usb_device()
+    }
+
+    /// Device identifier reported by the currently opened FEL/FES endpoint.
+    pub fn device_id(&self) -> u32 {
+        self.ctx.resp.id
+    }
+
     /// Set device path directly for backends that open devices from a stable system path.
     pub fn set_device_path(&mut self, device_path: &str) -> Result<(), EfexError> {
         if let Some(existing) = (!self.ctx.dev_name.is_null()).then_some(self.ctx.dev_name) {
@@ -286,13 +315,26 @@ impl Context {
 
         let devices = unsafe {
             let slice = std::slice::from_raw_parts(devices_ptr, count);
+            let hotplug = Self::scan_hotplug_devices().unwrap_or_default();
             let vec: Vec<ScannedDevice> = slice
                 .iter()
-                .map(|d| ScannedDevice {
-                    bus: d.bus,
-                    port: d.port,
-                    vid: d.vid,
-                    pid: d.pid,
+                .map(|d| {
+                    let identity = hotplug.iter().find(|candidate| {
+                        candidate.bus_id == u32::from(d.bus)
+                            && candidate.port == Some(d.port)
+                            && candidate.vendor_id == d.vid
+                            && candidate.product_id == d.pid
+                    });
+                    let device_path = identity.and_then(|item| item.device_path.clone());
+                    let location_path = Some(format!("libusb:{}:{}", d.bus, d.port));
+                    ScannedDevice {
+                        bus: d.bus,
+                        port: d.port,
+                        vid: d.vid,
+                        pid: d.pid,
+                        location_path,
+                        device_path,
+                    }
                 })
                 .collect();
             libc::free(devices_ptr as *mut std::ffi::c_void);
@@ -493,6 +535,28 @@ impl Context {
     /// Switch active flash storage type.
     pub fn fes_flash_switch(&self, flash_type: u32) -> Result<(), EfexError> {
         let result = unsafe { sunxi_efex_fes_flash_switch(self.as_ptr(), flash_type) };
+        if result != EFEX_ERR_SUCCESS {
+            return Err(c_error_to_rust(result));
+        }
+        Ok(())
+    }
+
+    /// Ask the running FES service to force-erase the selected flash device.
+    ///
+    /// This command is intentionally kept separate from the normal erase flag:
+    /// board recovery code may use it to scrub corrupted NAND bad-block markers.
+    pub fn fes_force_erase_flash(&self) -> Result<(), EfexError> {
+        let result = unsafe {
+            libefex_sys::sunxi_usb_fes_xfer(
+                self.as_ptr(),
+                libefex_sys::sunxi_usb_fes_xfer_type_t::FES_XFER_NONE,
+                libefex_sys::sunxi_efex_cmd_t::EFEX_CMD_FES_FORCE_ERASE_FLASH as u32,
+                std::ptr::null(),
+                0,
+                std::ptr::null(),
+                0,
+            )
+        };
         if result != EFEX_ERR_SUCCESS {
             return Err(c_error_to_rust(result));
         }

@@ -151,7 +151,8 @@ int sunxi_usb_fes_xfer(const struct sunxi_efex_ctx_t *ctx, const enum sunxi_usb_
 		if (ret < 0) {
 			return ret;
 		}
-		return EFEX_ERR_PROTOCOL;
+		/* Preserve the positive AWUS/FES status byte for the Rust caller. */
+		return ret;
 	}
 
 	return EFEX_ERR_SUCCESS;
