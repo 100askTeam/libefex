@@ -11,7 +11,7 @@
 #include "usb_layer.h"
 
 #ifdef _WIN32
-#include <SetupAPI.h>
+#include <setupapi.h>
 #include <initguid.h>
 #include <usbiodef.h>
 #include <windows.h>
